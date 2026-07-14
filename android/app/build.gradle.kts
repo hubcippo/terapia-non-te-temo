@@ -18,6 +18,22 @@ android {
         versionName = "0.4.0"
     }
 
+    // Firma release: i parametri arrivano SOLO dall'ambiente (CI, secret GitHub).
+    // Senza env la build debug resta identica e assembleRelease produce un APK
+    // non firmato (inutilizzabile ma non rompe nulla).
+    val keystoreFile = System.getenv("KEYSTORE_FILE")
+    if (keystoreFile != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(keystoreFile)
+                storeType = "PKCS12"
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -25,6 +41,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (keystoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
