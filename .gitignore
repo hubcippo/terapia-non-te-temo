@@ -1,0 +1,33 @@
+# ── DATI PRIVATI DI CARLO — MAI nel repo pubblico ──
+Img carletto/
+Vocali Carletto/
+*.jpeg
+*.jpg
+*.pdf
+REPORT-Carlo.md
+PER-CARLO.md
+
+# Documenti di progetto con dati sanitari/personali (restano solo in locale)
+SPEC.md
+DESIGN-DECISIONS.md
+STATO-PROGETTO.md
+REVIEW.md
+PIANO-SVILUPPO.md
+prototipo-estrazione/RISULTATO-FASE-A.md
+
+# ── Segreti ──
+*.key
+local.properties
+*.keystore
+*.jks
+
+# ── Android / Gradle ──
+.gradle/
+build/
+**/build/
+app/build/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/

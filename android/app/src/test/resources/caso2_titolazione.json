@@ -1,0 +1,31 @@
+{
+  "e_ricetta": true,
+  "avvisi": [
+    "L'abbreviazione dell'unità posologica appare come 'cs': verificare sull'originale se indica compressa/capsula.",
+    "Per Neurofase, nella fase 'poi mattina e sera per 5 giorni' il testo sembra sottintendere la stessa dose della fase precedente (50 mg, 1 'cs' per somministrazione), ma non lo ripete in modo pienamente esplicito: controllare a mano sull'originale."
+  ],
+  "terapie": [
+    {
+      "farmaco": "Analgen 5 mg",
+      "forma": "altro",
+      "note": null,
+      "confidenza": "alta",
+      "illeggibile": false,
+      "fasi": [
+        { "ordine": 1, "dose": "1 cs", "doseMattina": null, "doseSera": null, "schema": "orari", "intervalloOre": null, "quando": ["mattina", "sera"], "durataGiorni": 7, "mantenimento": false, "dopoFasePrecedente": false }
+      ]
+    },
+    {
+      "farmaco": "Neurofase",
+      "forma": "altro",
+      "note": null,
+      "confidenza": "bassa",
+      "illeggibile": true,
+      "fasi": [
+        { "ordine": 1, "dose": "50 mg 1 cs", "doseMattina": null, "doseSera": null, "schema": "orari", "intervalloOre": null, "quando": ["sera"], "durataGiorni": 2, "mantenimento": false, "dopoFasePrecedente": false },
+        { "ordine": 2, "dose": "50 mg 1 cs", "doseMattina": null, "doseSera": null, "schema": "orari", "intervalloOre": null, "quando": ["mattina", "sera"], "durataGiorni": 5, "mantenimento": false, "dopoFasePrecedente": true },
+        { "ordine": 3, "dose": null, "doseMattina": "50 mg 1 cs", "doseSera": "75 mg 1 cs", "schema": "orari", "intervalloOre": null, "quando": ["mattina", "sera"], "durataGiorni": null, "mantenimento": true, "dopoFasePrecedente": true }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "e_ricetta": false,
+  "avvisi": [
+    "L'immagine mostra una griglia/promemoria settimanale scritta a mano, non una prescrizione/referto medico da cui estrarre una nuova terapia.",
+    "Sono presenti abbreviazioni e segni (es. lettere singole, croci, orari) ma i nomi dei farmaci e le dosi non sono leggibili con certezza.",
+    "Verifica la terapia dalla prescrizione originale o inseriscila manualmente nell'app se questo foglio è solo un promemoria."
+  ],
+  "terapie": []
+}

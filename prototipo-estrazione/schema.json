@@ -1,0 +1,59 @@
+{
+  "name": "piano_terapeutico",
+  "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["e_ricetta", "terapie", "avvisi"],
+    "properties": {
+      "e_ricetta": {
+        "type": "boolean",
+        "description": "true se l'immagine è una prescrizione/referto con terapia; false se è altro (es. griglia disegnata a mano, foto non pertinente)."
+      },
+      "avvisi": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Note globali per l'utente: parti illeggibili, ambiguità, cosa verificare a mano."
+      },
+      "terapie": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["farmaco", "forma", "note", "fasi", "confidenza", "illeggibile"],
+          "properties": {
+            "farmaco": { "type": "string", "description": "Nome commerciale + dosaggio se presente (es. 'Gastroprot 40 mg')." },
+            "forma": { "type": "string", "enum": ["compressa", "iniezione", "altro"] },
+            "note": { "type": ["string", "null"], "description": "Vincoli: 'a digiuno', 'IM', 'la mattina', ecc." },
+            "confidenza": { "type": "string", "enum": ["alta", "media", "bassa"] },
+            "illeggibile": { "type": "boolean", "description": "true se il farmaco o le sue dosi non sono leggibili con certezza." },
+            "fasi": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ordine", "dose", "doseMattina", "doseSera", "schema", "intervalloOre", "quando", "durataGiorni", "mantenimento", "dopoFasePrecedente"],
+                "properties": {
+                  "ordine": { "type": "integer", "description": "1-based, ordine sequenziale della fase (scalare/titolazione)." },
+                  "dose": { "type": ["string", "null"], "description": "Dose singola: '1 fiala', '1 cpr', '50 mg'. null se dose asimmetrica mattina/sera." },
+                  "doseMattina": { "type": ["string", "null"], "description": "Dose del mattino se diversa da quella della sera (titolazione)." },
+                  "doseSera": { "type": ["string", "null"], "description": "Dose della sera se diversa da quella del mattino (titolazione)." },
+                  "schema": { "type": "string", "enum": ["intervallo", "orari"], "description": "'intervallo' = ogni N ore; 'orari' = momenti fissi del giorno." },
+                  "intervalloOre": { "type": ["integer", "null"], "description": "Ore tra una dose e l'altra se schema='intervallo' (8/12/24)." },
+                  "quando": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["mattina", "pranzo", "pomeriggio", "sera", "notte"] },
+                    "description": "Momenti del giorno se schema='orari'."
+                  },
+                  "durataGiorni": { "type": ["integer", "null"], "description": "Giorni di durata della fase. null se mantenimento/indefinito." },
+                  "mantenimento": { "type": "boolean", "description": "true se è la dose di mantenimento a tempo indeterminato." },
+                  "dopoFasePrecedente": { "type": "boolean", "description": "true se questa fase inizia quando finisce quella precedente (scalare)." }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "strict": true
+}

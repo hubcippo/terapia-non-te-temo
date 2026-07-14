@@ -1,0 +1,41 @@
+{
+  "e_ricetta": true,
+  "avvisi": [
+    "Per 'Cortifiale 4 mg fl + Miorilax fl' la prescrizione riporta '1 IM': verificare manualmente se si intende una singola iniezione o 1 fiala di ciascun farmaco per somministrazione.",
+    "Per 'Antidolor 500' la forma farmaceutica non è specificata chiaramente nella prescrizione: verificarla a mano.",
+    "Per 'Gastroprot 40 mg cpr' non è indicata una durata: inserito come mantenimento fino a diversa indicazione medica."
+  ],
+  "terapie": [
+    {
+      "farmaco": "Cortifiale 4 mg fl + Miorilax fl",
+      "forma": "iniezione",
+      "note": "IM",
+      "confidenza": "media",
+      "illeggibile": false,
+      "fasi": [
+        { "ordine": 1, "dose": "1", "doseMattina": null, "doseSera": null, "schema": "intervallo", "intervalloOre": 12, "quando": [], "durataGiorni": 5, "mantenimento": false, "dopoFasePrecedente": false },
+        { "ordine": 2, "dose": "1", "doseMattina": null, "doseSera": null, "schema": "intervallo", "intervalloOre": 24, "quando": [], "durataGiorni": 2, "mantenimento": false, "dopoFasePrecedente": true }
+      ]
+    },
+    {
+      "farmaco": "Antidolor 500",
+      "forma": "altro",
+      "note": null,
+      "confidenza": "media",
+      "illeggibile": false,
+      "fasi": [
+        { "ordine": 1, "dose": "1", "doseMattina": null, "doseSera": null, "schema": "intervallo", "intervalloOre": 8, "quando": [], "durataGiorni": 7, "mantenimento": false, "dopoFasePrecedente": false }
+      ]
+    },
+    {
+      "farmaco": "Gastroprot 40 mg cpr",
+      "forma": "compressa",
+      "note": "a digiuno",
+      "confidenza": "alta",
+      "illeggibile": false,
+      "fasi": [
+        { "ordine": 1, "dose": "1", "doseMattina": null, "doseSera": null, "schema": "orari", "intervalloOre": null, "quando": ["mattina"], "durataGiorni": null, "mantenimento": true, "dopoFasePrecedente": false }
+      ]
+    }
+  ]
+}
