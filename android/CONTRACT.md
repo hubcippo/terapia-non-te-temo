@@ -282,3 +282,26 @@ app/src/test/java/com/carletto/terapianontetemo/allarme/ProssimoAllarmeTest.kt
 - Nessuna nuova dipendenza Gradle. Icona notifica: android.R.drawable.ic_lock_idle_alarm (KISS, niente asset nuovi).
 - versionCode 3, versionName "0.3.0" in app/build.gradle.kts.
 - Stringhe italiane; l'allarme deve essere leggibile A DISTANZA (display sizes).
+
+---
+
+# CONTRACT — Fase D.1: suono robusto via foreground service (aggiunta 2026-07-14, da test reale su HyperOS)
+
+PROBLEMA EMERSO SUL DEVICE: in silenzioso la notifica non suona (HyperOS muta i suoni di canale) e il full-screen può essere soppresso → l'allarme resta muto finché non tocchi la notifica. FIX: il suono NON dipende più da notifica/full-screen.
+
+## 13. Modifiche Fase D.1
+```
+allarme/SuonoAllarmeService.kt   NUOVO. Foreground service che POSSIEDE suoneria+vibrazione+TTS dell'allarme.
+                                 - onStartCommand: legge EXTRA_FASCIA/EXTRA_PROVA; startForeground(AlarmReceiver.NOTIFICA_ID, <la stessa notifica full-screen costruita da AlarmReceiver.mostraNotifica -> estrai la costruzione in una funzione condivisa che RITORNA la Notification senza pubblicarla>). foregroundServiceType mediaPlayback.
+                                 - Suona Ringtone TYPE_ALARM con USAGE_ALARM in loop (28+) + vibrazione waveform ripetuta (stesso codice oggi in AlarmActivity: SPOSTALO qui).
+                                 - TTS: init sicura, italiano; dopo ~1.5s pronuncia fraseTts(voci) (voci lette via repository come fa il receiver; per prova usa VOCE_DI_PROVA); pausa suoneria durante il parlato e riprendi (sposta la logica dall'Activity).
+                                 - ACTION_STOP: interrompe suono/vibrazione/TTS, stopForeground(REMOVE la notifica? NO: stopForeground(STOP_FOREGROUND_DETACH) così la notifica resta se non gestita) e stopSelf. Decisione: su Fatto/Rimanda la notifica va comunque cancellata dai chiamanti già esistenti.
+                                 - Timeout di sicurezza: dopo 10 minuti di suono continuo, ferma suono/vibrazione (la notifica resta; la dose diventerà SALTATA a 2h dalla fascia). Handler nel service.
+                                 - onDestroy: rilascia tutto (ringtone stop, vibrator cancel, tts shutdown, handler callbacks).
+AlarmReceiver.kt                 MODIFICA: costruisci la notifica con la funzione condivisa; NON pubblicarla via NotificationManagerCompat quando avvii il service (la pubblica startForeground). Avvia SEMPRE context.startForegroundService(Intent(SuonoAllarmeService)) con gli stessi extra. Mantieni il fallback: se startForegroundService lancia (ForegroundServiceStartNotAllowedException o altro) -> pubblica la notifica come oggi (il suono almeno da canale).
+AlarmActivity.kt                 MODIFICA: RIMUOVI Ringtone/Vibrator/TTS (ora nel service). L'activity è SOLO UI: mostra le voci, e su Fatto/Rimanda/chiusura manda ACTION_STOP al service (context.startService con action) oltre a fare ciò che già fa (repository + cancel notifica + ripianifica + finish). All'apertura NON avvia suoni.
+AzioneReceiver.kt                MODIFICA: oltre a cancellare la notifica, manda ACTION_STOP al service.
+AndroidManifest.xml              MODIFICA: permessi FOREGROUND_SERVICE + FOREGROUND_SERVICE_MEDIA_PLAYBACK; <service android:name=".allarme.SuonoAllarmeService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>.
+app/build.gradle.kts             versionCode 4, versionName "0.3.1".
+```
+Regole: startForegroundService da un allarme setAlarmClock è ESENTE dalle restrizioni background (l'app è temporaneamente whitelisted dal fire dell'allarme). Il service chiama startForeground ENTRO onStartCommand immediatamente. Nessuna nuova dipendenza.

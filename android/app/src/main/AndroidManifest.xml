@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Fase D.1: suoneria/voce dell'allarme in un foreground service,
+         indipendente da notifica e full-screen (HyperOS le muta). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
     <application
         android:name=".TerapiaApp"
         android:allowBackup="true"
@@ -48,6 +53,13 @@
         <receiver
             android:name=".allarme.AzioneReceiver"
             android:exported="false" />
+
+        <!-- Foreground service che possiede suoneria, vibrazione e voce TTS
+             dell'allarme (CONTRACT sez. 13). -->
+        <service
+            android:name=".allarme.SuonoAllarmeService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- Ripianifica gli allarmi dopo il riavvio del telefono. -->
         <receiver

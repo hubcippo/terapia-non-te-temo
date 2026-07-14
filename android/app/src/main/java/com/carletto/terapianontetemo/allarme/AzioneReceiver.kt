@@ -19,6 +19,8 @@ class AzioneReceiver : BroadcastReceiver() {
         val azione = intent.action
 
         goAsyncIO {
+            // Zittisce suoneria/vibrazione/TTS del service e toglie la notifica.
+            SuonoAllarmeService.ferma(appContext)
             NotificationManagerCompat.from(appContext).cancel(AlarmReceiver.NOTIFICA_ID)
             if (prova || fascia <= 0L) {
                 // Prova: niente DB, la notifica e' gia' stata tolta.
