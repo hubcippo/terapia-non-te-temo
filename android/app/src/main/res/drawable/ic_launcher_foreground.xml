@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Capsula inclinata a 45° nel safe-zone 66x66 centrale (CONTRACT sez. 14):
+     due semi-capsule, bianco pieno + bianco 60%, solo path semplici. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Metà in basso a sinistra (bianco pieno) -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M51.17,70.97 A10,10 0 0 1 37.03,56.83 L46.93,46.93 L61.07,61.07 Z" />
+
+    <!-- Metà in alto a destra (bianco 60%) -->
+    <path
+        android:fillColor="#99FFFFFF"
+        android:pathData="M56.83,37.03 A10,10 0 0 1 70.97,51.17 L61.07,61.07 L46.93,46.93 Z" />
+</vector>

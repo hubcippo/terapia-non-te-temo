@@ -1,5 +1,6 @@
 package com.carletto.terapianontetemo.util
 
+import com.carletto.terapianontetemo.data.entity.Fascia
 import com.carletto.terapianontetemo.data.entity.Forma
 import java.time.Instant
 import java.time.ZoneId
@@ -10,6 +11,15 @@ private val FORMATO_ORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm"
 /** Regola di presentazione unica: le iniezioni mostrano l'emoji 💉 davanti al nome. */
 fun etichettaFarmaco(forma: Forma, nome: String): String =
     if (forma == Forma.INIEZIONE) "💉 $nome" else nome
+
+/** Nome italiano leggibile della fascia oraria. */
+fun etichettaFascia(fascia: Fascia): String = when (fascia) {
+    Fascia.MATTINA -> "Mattina"
+    Fascia.PRANZO -> "Pranzo"
+    Fascia.POMERIGGIO -> "Pomeriggio"
+    Fascia.SERA -> "Sera"
+    Fascia.NOTTE -> "Notte"
+}
 
 /** Ora locale in formato HH:mm da epoch millis. */
 fun formattaOra(millis: Long): String =

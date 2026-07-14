@@ -305,3 +305,120 @@ AndroidManifest.xml              MODIFICA: permessi FOREGROUND_SERVICE + FOREGRO
 app/build.gradle.kts             versionCode 4, versionName "0.3.1".
 ```
 Regole: startForegroundService da un allarme setAlarmClock è ESENTE dalle restrizioni background (l'app è temporaneamente whitelisted dal fire dell'allarme). Il service chiama startForeground ENTRO onStartCommand immediatamente. Nessuna nuova dipendenza.
+
+---
+
+# CONTRACT — Fase E: Storico+aderenza, Dettaglio/Ferma, Onboarding, badge scalare, icona (aggiunta 2026-07-14)
+
+Regole d'oro invariate (sez.0). Un solo autore. **NON cambiare firme/file esistenti se non dove indicato "MODIFICA". Nessuna nuova dipendenza. Nessuna modifica alle @Entity (quindi NIENTE bump versione Room, niente migration).**
+
+## 14. File Fase E
+```
+app/src/main/java/com/carletto/terapianontetemo/
+  domain/Aderenza.kt               LOGICA PURA (zero Android):
+                                   object Aderenza {
+                                     data class Riepilogo(val prese: Int, val saltate: Int) {
+                                       val totale get() = prese + saltate
+                                       /** percentuale intera 0..100, null se totale==0 */
+                                       val percento: Int? get() = ...
+                                     }
+                                     /** conta SOLO PRESO e SALTATO (ATTESA/RIMANDATO ignorati). */
+                                     fun complessiva(dosi: List<DoseEvent>): Riepilogo
+                                     fun perFarmaco(dosi: List<DoseEvent>): Map<Long, Riepilogo>
+                                   }
+  domain/CambioDose.kt             LOGICA PURA. ESTRAI la regola oggi dentro SuonoAllarmeService.caricaVociAllarme
+                                   (riferimento = evento di ieri più vicino a dataOraMillis-24h; cambio se dose diversa):
+                                   object CambioDose {
+                                     fun riferimentoIeri(dose: DoseEvent, dosiIeriStessoFarmaco: List<DoseEvent>): DoseEvent?
+                                     fun eCambio(dose: DoseEvent, dosiIeriStessoFarmaco: List<DoseEvent>): Boolean
+                                   }
+  allarme/SuonoAllarmeService.kt   MODIFICA MINIMA: caricaVociAllarme usa CambioDose.eCambio/riferimentoIeri
+                                   (stessa identica semantica, la regola vive in UN posto solo). NON toccare altro del service.
+  data/dao/DoseEventDao.kt         MODIFICA ADDITIVA (in coda, sezione "Fase E"):
+                                     /** Tutte le dosi, più recenti prima (Storico). */
+                                     @Query("SELECT * FROM DoseEvent ORDER BY dataOraMillis DESC")
+                                     fun tutte(): Flow<List<DoseEvent>>
+                                     /** Ferma terapia: elimina SOLO le dosi in ATTESA del farmaco. */
+                                     @Query("DELETE FROM DoseEvent WHERE farmacoId = :farmacoId AND stato = :stato")
+                                     suspend fun eliminaAttesaDiFarmaco(farmacoId: Long, stato: StatoDose = StatoDose.ATTESA)
+                                     /** Dosi ieri per più farmaci in un colpo (badge scalare, no N+1). */
+                                     @Query("SELECT * FROM DoseEvent WHERE farmacoId IN (:ids) AND dataOraMillis >= :da AND dataOraMillis < :a")
+                                     suspend fun dosiDiFarmaciInRange(ids: List<Long>, da: Long, a: Long): List<DoseEvent>
+  data/dao/FarmacoDao.kt           MODIFICA ADDITIVA:
+                                     /** Farmaci con almeno una dose in ATTESA = terapie attive. */
+                                     @Query("SELECT * FROM Farmaco WHERE id IN (SELECT DISTINCT farmacoId FROM DoseEvent WHERE stato = :stato) ORDER BY nome")
+                                     fun conDosiAttesa(stato: StatoDose = StatoDose.ATTESA): Flow<List<Farmaco>>
+  data/TerapiaRepository.kt        MODIFICA ADDITIVA (metodi in coda, KDoc "Fase E"):
+                                     fun tutteLeDosi(): Flow<List<DoseEvent>>
+                                     fun terapieAttive(): Flow<List<Farmaco>>
+                                     fun fasiDiFarmaco(farmacoId: Long): Flow<List<Fase>>   // via db.faseDao().perFarmaco (aggiungi faseDao al costruttore interno come gli altri)
+                                     suspend fun fermaTerapia(farmacoId: Long)               // -> eliminaAttesaDiFarmaco
+                                     suspend fun dosiIeriDeiFarmaci(ids: List<Long>, ieri00: Long, oggi00: Long): List<DoseEvent>
+  ui/storico/StoricoViewModel.kt   come HomeViewModel (app: TerapiaApp, Factory): espone StateFlow<StoricoUiState>
+                                   data class StoricoUiState(val dosi: List<DoseEvent>, val nomiFarmaci: Map<Long,String>,
+                                     val complessiva: Aderenza.Riepilogo, val perFarmaco: Map<Long, Aderenza.Riepilogo>)
+                                   Aderenza calcolata SOLO su dosi passate (dataOraMillis < adesso) — le future in ATTESA non contano.
+                                   nomiFarmaci con la stessa tecnica distinctUntilChanged della Home.
+  ui/storico/StoricoScreen.kt      READ-ONLY. In testa: card "Aderenza" con percento complessivo GRANDE ("87% — 26 su 30")
+                                   + riga per farmaco ("NomeFarmaco: 90% (18/20)"); se percento null -> "Ancora nessuna dosa passata".
+                                   Sotto: lista dosi (più recenti prime) raggruppate per giorno (header data "lun 14 luglio"),
+                                   riga = ora + etichettaFarmaco + dose + stato (✅ presa / ❌ saltata / ⏳ in attesa).
+                                   Nessun bottone d'azione. TopAppBar con freccia indietro.
+  ui/terapie/TerapieViewModel.kt   (app, Factory): StateFlow con lista terapie attive (Farmaco) e, per il dettaglio,
+                                   fun fasi(farmacoId): Flow<List<Fase>>; suspend fun ferma(farmacoId) -> repository.fermaTerapia + AlarmScheduler.ripianifica(app).
+  ui/terapie/TerapieScreen.kt      Lista terapie attive: card grande per farmaco (etichettaFarmaco). Tap -> dettaglio.
+                                   Vuoto -> "Nessuna terapia attiva". TopAppBar freccia indietro.
+  ui/terapie/DettaglioTerapiaScreen.kt  route "terapia/{farmacoId}" (nav arg Long). Mostra: nome farmaco, per ogni Fase
+                                   le info leggibili (dose o mattina/sera, schema orari/intervallo, durata o "fino a stop",
+                                   fasce quando). Bottone rosso grande "🛑 Ferma questa terapia" -> AlertDialog conferma
+                                   ("Le prossime dosi verranno cancellate. Lo storico resta.") -> ferma -> nav back a "terapie".
+                                   Le dosi PASSATE non si toccano MAI.
+  ui/onboarding/OnboardingScreen.kt  Wizard a passi (stato locale rememberSaveable, NIENTE ViewModel), testo GRANDE,
+                                   bottoni "Avanti" e "Salta" SEMPRE presenti (Carlo non resta mai bloccato):
+                                   1. Benvenuto: "Ciao Carlo! 3 passi e siamo pronti." (2 frasi, icona 💊)
+                                   2. Chiave: campo password + Salva via KeyStore.setApiKey (se già presente: "Chiave già salvata ✅", solo Avanti)
+                                   3. Notifiche: spiegazione 1 frase + bottone "Consenti notifiche" (RequestPermission POST_NOTIFICATIONS se SDK>=33 e non concesso; altrimenti "Già a posto ✅")
+                                   4. Batteria: bottone "Escludi dal risparmio batteria" (Intent ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, data "package:$packageName", try/catch -> fallback ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                      + due card guida: "Samsung (One UI)" e "Xiaomi/Redmi (HyperOS)" con passi elencati
+                                      (One UI: Impostazioni > Batteria > Limiti uso in background > app "mai sospese"; HyperOS: consenti "Avvio automatico"
+                                       e nelle Autorizzazioni "Mostra sulla schermata di blocco"; entrambe: notifiche non silenziose).
+                                      Evidenzia (bordo colorato + "il tuo telefono") la card che combacia con Build.MANUFACTURER (samsung/xiaomi, case-insensitive; altrimenti nessuna evidenza).
+                                   5. Prova: bottone "🔔 Suona un allarme di prova tra 1 minuto" -> AlarmScheduler.programmaProva + testo "Blocca lo schermo e aspetta: deve suonare e parlare."
+                                   Fine ("Fatto!"): salva flag e naviga a home (popUpTo onboarding inclusive).
+                                   IL PASSO PROVA (5) STA DOPO IL PASSO NOTIFICHE (3): l'ordine è vincolante.
+  util/Preferenze.kt               object: SharedPreferences normali (nome "prefs"): fun onboardingFatto(context): Boolean; fun segnaOnboardingFatto(context).
+  ui/AppRoot.kt                    MODIFICA: startDestination = if (Preferenze.onboardingFatto) "home" else "onboarding";
+                                   route nuove: "onboarding", "storico", "terapie", "terapia/{farmacoId}" (navArgument LongType).
+                                   Home riceve onStorico, onTerapie, onGuida = { navController.navigate("onboarding") }.
+  ui/home/HomeScreen.kt            MODIFICA: nella TopAppBar aggiungi IconButton 📖 (Storico) e 💊 (Terapie) accanto alla 🔔;
+                                   in fondo alla lista una voce discreta "❓ Rivedi la guida" -> onGuida.
+                                   BADGE SCALARE: se state.farmaciCambioOggi non vuoto, Card gialla evidente sopra la lista:
+                                   "⚠️ Oggi cambia la dose di: <nomi separati da virgola>". Firma: HomeScreen(viewModel, onAggiungi, onProvaAllarme, onStorico, onTerapie, onGuida).
+  ui/home/HomeViewModel.kt         MODIFICA ADDITIVA: HomeUiState + val farmaciCambioOggi: List<String> (nomi).
+                                   Calcolo: dai flow già esistenti (dosi di oggi), one-shot dosiIeriDeiFarmaci per gli id di oggi
+                                   (range ieri00->oggi00), poi CambioDose.eCambio per la PRIMA dose di oggi di ogni farmaco; nomi da nomiFarmaci.
+                                   NON introdurre nuove query osservate per-farmaco (no N+1).
+app/src/main/res/drawable/ic_launcher_foreground.xml   VECTOR SEMPLICE: viewport 108x108, contenuto nel safe-zone 66x66 centrale:
+                                   una capsula/pillola inclinata 45° (due semi-capsule, bianco + bianco 60%) su niente sfondo (lo sfondo è a parte).
+                                   SOLO <path> con pathData semplici. Niente gradient, niente clip.
+app/src/main/res/values/ic_launcher_background.xml     <color name="ic_launcher_background">#1B6E53</color> (verde farmacia scuro, alto contrasto)
+app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml     <adaptive-icon> foreground/background + <monochrome> (stesso foreground)
+app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml  identico
+app/src/main/AndroidManifest.xml   MODIFICA: android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" su <application>;
+                                   permesso <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+app/build.gradle.kts               versionCode 5, versionName "0.4.0"
+app/src/test/java/com/carletto/terapianontetemo/domain/AderenzaTest.kt
+                                   casi: tutte prese (100), tutte saltate (0), miste (arrotondamento), lista vuota (percento null),
+                                   ATTESA e RIMANDATO ignorate, perFarmaco raggruppa giusto.
+app/src/test/java/com/carletto/terapianontetemo/domain/CambioDoseTest.kt
+                                   casi: ieri stessa dose -> false; ieri dose diversa -> true; nessun evento ieri -> false;
+                                   titolazione mattina/sera: il riferimento è l'evento più vicino a -24h (mattina confronta mattina).
+```
+
+## 15. Regole Fase E
+- minSdk 26 ⇒ adaptive icon copre TUTTI i device: niente mipmap png legacy.
+- Ferma terapia: DELETE SOLO stato ATTESA. Le dosi passate (PRESO/SALTATO) restano per sempre (aderenza storica).
+- Stile UI identico a Home/Conferma: italiano, testo grande, Material3; stringhe hardcoded in italiano come nel resto del codice.
+- Nessuna modifica a: allarme/* (tranne la riga cambio-dose indicata), aggiungi/*, ai/*, entity, Converters, CI workflow.
+- I ViewModel nuovi seguono ESATTAMENTE il pattern Factory(app: TerapiaApp) esistente.
+- PendingIntent/requestCode: nessuno nuovo (si riusa programmaProva).

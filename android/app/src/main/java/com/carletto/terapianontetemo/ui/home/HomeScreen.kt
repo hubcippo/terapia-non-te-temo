@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +55,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import com.carletto.terapianontetemo.data.entity.DoseEvent
 import com.carletto.terapianontetemo.data.entity.StatoDose
+import com.carletto.terapianontetemo.ui.theme.GialloBordo
+import com.carletto.terapianontetemo.ui.theme.GialloSfondo
+import com.carletto.terapianontetemo.ui.theme.GialloTesto
 import com.carletto.terapianontetemo.util.etichettaFarmaco
 import com.carletto.terapianontetemo.util.formattaOra
 
@@ -67,7 +72,10 @@ private fun etichettaStato(stato: StatoDose): String = when (stato) {
 fun HomeScreen(
     viewModel: HomeViewModel,
     onAggiungi: () -> Unit,
-    onProvaAllarme: () -> Unit
+    onProvaAllarme: () -> Unit,
+    onStorico: () -> Unit,
+    onTerapie: () -> Unit,
+    onGuida: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -92,7 +100,10 @@ fun HomeScreen(
         state = state,
         onFatto = viewModel::segnaFatto,
         onAggiungi = onAggiungi,
-        onProvaAllarme = onProvaAllarme
+        onProvaAllarme = onProvaAllarme,
+        onStorico = onStorico,
+        onTerapie = onTerapie,
+        onGuida = onGuida
     )
 }
 
@@ -102,7 +113,10 @@ private fun HomeContent(
     state: HomeUiState,
     onFatto: (Long) -> Unit,
     onAggiungi: () -> Unit,
-    onProvaAllarme: () -> Unit
+    onProvaAllarme: () -> Unit,
+    onStorico: () -> Unit,
+    onTerapie: () -> Unit,
+    onGuida: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -118,6 +132,18 @@ private fun HomeContent(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onStorico) {
+                        Text(
+                            text = "📖",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    }
+                    IconButton(onClick = onTerapie) {
+                        Text(
+                            text = "💊",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    }
                     IconButton(
                         onClick = {
                             onProvaAllarme()
@@ -155,6 +181,12 @@ private fun HomeContent(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Fase E: badge scalare — oggi la dose cambia rispetto a ieri.
+            if (state.farmaciCambioOggi.isNotEmpty()) {
+                CambioDoseBadge(nomi = state.farmaciCambioOggi)
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             if (state.prossima != null) {
                 ProssimaDoseCard(
                     dose = state.prossima,
@@ -186,6 +218,8 @@ private fun HomeContent(
                         textAlign = TextAlign.Center
                     )
                 }
+                RivediGuidaButton(onClick = onGuida)
+                Spacer(modifier = Modifier.height(88.dp))
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -200,10 +234,49 @@ private fun HomeContent(
                             onFatto = onFatto
                         )
                     }
+                    // Fase E: voce discreta in fondo alla lista.
+                    item(key = "rivedi_guida") {
+                        RivediGuidaButton(onClick = onGuida)
+                    }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+    }
+}
+
+/** Fase E: voce discreta per riaprire la guida (onboarding). */
+@Composable
+private fun RivediGuidaButton(onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "❓ Rivedi la guida",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/** Fase E: card gialla evidente quando oggi cambia la dose di uno o più farmaci. */
+@Composable
+private fun CambioDoseBadge(nomi: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = GialloSfondo,
+            contentColor = GialloTesto
+        ),
+        border = BorderStroke(3.dp, GialloBordo)
+    ) {
+        Text(
+            text = "⚠️ Oggi cambia la dose di: ${nomi.joinToString(", ")}",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(16.dp)
+        )
     }
 }
 

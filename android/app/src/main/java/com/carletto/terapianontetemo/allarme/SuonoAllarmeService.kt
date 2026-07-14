@@ -19,10 +19,10 @@ import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.ServiceCompat
 import com.carletto.terapianontetemo.TerapiaApp
 import com.carletto.terapianontetemo.data.entity.Forma
+import com.carletto.terapianontetemo.domain.CambioDose
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
-import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,13 +30,11 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val GIORNO_MILLIS = 24 * 60 * 60 * 1000L
-
 /**
  * Carica le voci dell'allarme per una fascia: dosi in ATTESA, nomi dei
- * farmaci e confronto con la dose di ieri (avviso cambio dose).
- * Condivisa tra SuonoAllarmeService (righe notifica + voce TTS)
- * e AlarmActivity (UI).
+ * farmaci e confronto con la dose di ieri (avviso cambio dose,
+ * regola in domain/CambioDose). Condivisa tra SuonoAllarmeService
+ * (righe notifica + voce TTS) e AlarmActivity (UI).
  */
 internal suspend fun caricaVociAllarme(app: TerapiaApp, fascia: Long): List<VoceAllarme> {
     val repository = app.repository
@@ -44,9 +42,6 @@ internal suspend fun caricaVociAllarme(app: TerapiaApp, fascia: Long): List<Voce
     val dosi = repository.dosiAttesaAllaFascia(fascia)
     val nomi = repository.nomiFarmaci(dosi.map { it.farmacoId }.distinct())
 
-    // Cambio dose: per ogni farmaco della fascia confronta la dose di oggi
-    // con quella di ieri (evento di ieri piu' vicino alla stessa ora,
-    // per non confondere mattina e sera nelle titolazioni).
     val zona = ZoneId.systemDefault()
     val giornoFascia = Instant.ofEpochMilli(fascia).atZone(zona).toLocalDate()
     val oggi00 = giornoFascia.atStartOfDay(zona).toInstant().toEpochMilli()
@@ -54,14 +49,11 @@ internal suspend fun caricaVociAllarme(app: TerapiaApp, fascia: Long): List<Voce
 
     return dosi.map { dose ->
         val ieri = dao.doseDiFarmacoInRange(dose.farmacoId, ieri00, oggi00)
-        val riferimento = ieri.minByOrNull {
-            abs(it.dataOraMillis - (dose.dataOraMillis - GIORNO_MILLIS))
-        }
         VoceAllarme(
             nome = nomi[dose.farmacoId] ?: "Farmaco",
             dose = dose.dose,
             iniezione = dose.forma == Forma.INIEZIONE,
-            cambioDose = riferimento != null && riferimento.dose != dose.dose
+            cambioDose = CambioDose.eCambio(dose, ieri)
         )
     }
 }

@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 import com.carletto.terapianontetemo.data.entity.Farmaco
+import com.carletto.terapianontetemo.data.entity.StatoDose
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -28,4 +29,13 @@ interface FarmacoDao {
 
     @Query("SELECT * FROM Farmaco ORDER BY nome")
     fun tutti(): Flow<List<Farmaco>>
+
+    // --- Fase E (CONTRACT sez. 14) ---
+
+    /** Farmaci con almeno una dose in ATTESA = terapie attive. */
+    @Query(
+        "SELECT * FROM Farmaco WHERE id IN " +
+            "(SELECT DISTINCT farmacoId FROM DoseEvent WHERE stato = :stato) ORDER BY nome"
+    )
+    fun conDosiAttesa(stato: StatoDose = StatoDose.ATTESA): Flow<List<Farmaco>>
 }

@@ -99,4 +99,21 @@ interface DoseEventDao {
         nuovoStato: StatoDose = StatoDose.PRESO,
         statoAttesa: StatoDose = StatoDose.ATTESA
     )
+
+    // --- Fase E: storico, ferma terapia, badge cambio dose (CONTRACT sez. 14) ---
+
+    /** Tutte le dosi, più recenti prima (Storico). */
+    @Query("SELECT * FROM DoseEvent ORDER BY dataOraMillis DESC")
+    fun tutte(): Flow<List<DoseEvent>>
+
+    /** Ferma terapia: elimina SOLO le dosi in ATTESA del farmaco. */
+    @Query("DELETE FROM DoseEvent WHERE farmacoId = :farmacoId AND stato = :stato")
+    suspend fun eliminaAttesaDiFarmaco(farmacoId: Long, stato: StatoDose = StatoDose.ATTESA)
+
+    /** Dosi ieri per più farmaci in un colpo (badge scalare, no N+1). */
+    @Query(
+        "SELECT * FROM DoseEvent WHERE farmacoId IN (:ids) AND dataOraMillis >= :da " +
+            "AND dataOraMillis < :a"
+    )
+    suspend fun dosiDiFarmaciInRange(ids: List<Long>, da: Long, a: Long): List<DoseEvent>
 }
