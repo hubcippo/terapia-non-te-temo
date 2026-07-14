@@ -40,4 +40,24 @@ class TerapiaRepository(db: AppDatabase) {
 
     /** Farmaci per id, in una sola query (evita N+1 dalla Home). */
     fun farmaci(ids: List<Long>): Flow<List<Farmaco>> = farmacoDao.byIds(ids)
+
+    // --- Fase D: allarmi (operazioni per fascia, CONTRACT sez. 11) ---
+
+    /** Dosi in ATTESA con orario esattamente uguale alla fascia. */
+    suspend fun dosiAttesaAllaFascia(fascia: Long): List<DoseEvent> =
+        doseEventDao.dosiAttesaAllaFascia(fascia)
+
+    /** Segna PRESO tutte le dosi in ATTESA della fascia. */
+    suspend fun segnaPresoFascia(fascia: Long, ts: Long) {
+        doseEventDao.segnaPresoFascia(fascia, ts)
+    }
+
+    /** Rimanda tutte le dosi in ATTESA della fascia al nuovo orario. */
+    suspend fun rimandaFascia(fascia: Long, nuovaOra: Long, ts: Long) {
+        doseEventDao.rimandaFascia(fascia, nuovaOra, ts)
+    }
+
+    /** Mappa farmacoId -> nome in una sola query one-shot (niente observer). */
+    suspend fun nomiFarmaci(ids: List<Long>): Map<Long, String> =
+        farmacoDao.byIdsOneShot(ids).associate { it.id to it.nome }
 }

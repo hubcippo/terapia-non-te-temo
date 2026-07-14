@@ -192,3 +192,93 @@ app/src/test/java/com/carletto/terapianontetemo/ui/aggiungi/PianoEditabileTest.k
 - NIENTE permesso CAMERA nel manifest (TakePicture usa l'app fotocamera di sistema).
 - Tutte le stringhe in italiano, testo grande come in Home.
 - Nessuna auto-attivazione: il piano entra in Room SOLO dal bottone Conferma.
+
+---
+
+# CONTRACT — Fase D: allarme insistente + voce (aggiunta 2026-07-14)
+
+Regole d'oro invariate. Un solo autore. KISS: AlarmManager + receiver + activity, NIENTE WorkManager/foreground service persistenti.
+
+## 11. File Fase D
+```
+app/src/main/AndroidManifest.xml   MODIFICA: permessi USE_EXACT_ALARM, POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED,
+                                   USE_FULL_SCREEN_INTENT, VIBRATE; receiver AlarmReceiver (exported=false) e BootReceiver
+                                   (exported=false, intent-filter BOOT_COMPLETED); activity AlarmActivity
+                                   (exported=false, showWhenLocked=true, turnScreenOn=true, launchMode=singleInstance,
+                                   excludeFromRecents=true, theme dell'app).
+app/src/main/java/com/carletto/terapianontetemo/
+  allarme/ProssimoAllarme.kt       LOGICA PURA (testabile JVM, zero Android):
+                                   object ProssimoAllarme {
+                                     const val SCADENZA_MILLIS = 2*60*60*1000L  // 2h -> SALTATO
+                                     /** id delle dosi ATTESA con dataOra <= adesso-2h (da marcare SALTATO). */
+                                     fun scadute(dosi: List<DoseEvent>, adessoMillis: Long): List<Long>
+                                     /** millis della prossima fascia: la MIN dataOraMillis tra le ATTESA con dataOra > adesso-2h... 
+                                         semplificazione: MIN dataOraMillis tra le ATTESA non scadute (può essere nel passato recente <2h: l'allarme scatta subito, ok). null se nessuna. */
+                                     fun prossimaFascia(dosi: List<DoseEvent>, adessoMillis: Long): Long?
+                                     /** tutte le dosi ATTESA con dataOraMillis == fasciaMillis (raggruppamento). */
+                                     fun dosiDellaFascia(dosi: List<DoseEvent>, fasciaMillis: Long): List<DoseEvent>
+                                   }
+  allarme/AlarmScheduler.kt        object AlarmScheduler {
+                                     const val EXTRA_FASCIA = "fasciaMillis"; const val EXTRA_PROVA = "prova"
+                                     /** Marca SALTATO le scadute, poi setAlarmClock sulla prossima fascia (o cancella se nulla).
+                                         Un solo PendingIntent (requestCode fisso 1001, FLAG_IMMUTABLE|FLAG_UPDATE_CURRENT) verso AlarmReceiver. */
+                                     suspend fun ripianifica(context: Context)
+                                     /** Allarme di PROVA tra delaySecondi (default 60): PendingIntent requestCode 1002 con EXTRA_PROVA=true.
+                                         NON tocca il DB. */
+                                     fun programmaProva(context: Context, delaySecondi: Int = 60)
+                                   }
+                                   Usa context.getSystemService(AlarmManager::class.java); se (SDK>=31 && !canScheduleExactAlarms()) fallback setExactAndAllowWhileIdle? NO: con USE_EXACT_ALARM canScheduleExactAlarms è true; metti comunque il check difensivo con fallback a setAlarmClock comunque tentato in try/catch SecurityException -> setWindow.
+                                   Serve leggere le dosi: DoseEventDao nuovo metodo suspend `tutteAttesa(): List<DoseEvent>` (query stato=ATTESA) e `marcaSaltate(ids: List<Long>, ts: Long)` (UPDATE ... WHERE id IN (:ids)).
+  allarme/AlarmReceiver.kt         BroadcastReceiver. onReceive: goAsync() + CoroutineScope(Dispatchers.IO):
+                                   se EXTRA_PROVA -> mostra SOLO la notifica full-screen con fascia=-1 (nessun DB);
+                                   altrimenti: marca scadute, legge dosi della fascia (EXTRA_FASCIA); se vuota -> ripianifica e stop;
+                                   mostra notifica full-screen; poi ripianifica (per la fascia successiva).
+                                   MAI startActivity diretto. Notifica: canale "allarme_terapia" IMPORTANCE_HIGH (creato in TerapiaApp.onCreate),
+                                   setCategory(CATEGORY_ALARM), setFullScreenIntent(PendingIntent verso AlarmActivity con EXTRA_FASCIA/EXTRA_PROVA, IMMUTABLE),
+                                   ongoing, azioni "Fatto" e "Rimanda 10 min" (PendingIntent verso AzioneReceiver), setSound(null) (il suono lo fa l'activity; ma
+                                   la notifica resta se il full-screen è soppresso -> setSound su canale: usa suono default allarme sul CANALE con AudioAttributes USAGE_ALARM così suona anche senza full-screen).
+                                   NotificationId fisso 2001.
+  allarme/AzioneReceiver.kt        BroadcastReceiver per le azioni della notifica: ACTION_FATTO -> marca PRESO tutte le dosi della fascia
+                                   (o niente se prova); ACTION_RIMANDA -> dataOraMillis += 10min per le dosi della fascia; entrambe:
+                                   cancella notifica 2001, AlarmScheduler.ripianifica. goAsync+IO.
+  allarme/AlarmActivity.kt         ComponentActivity Compose. onCreate: setShowWhenLocked(true), setTurnScreenOn(true),
+                                   (SDK>=27 API dedicate; il manifest ha già i flag), keyguardManager.requestDismissKeyguard.
+                                   Legge EXTRA_FASCIA/EXTRA_PROVA; se prova -> dose fittizia ("Farmaco di prova", "1 compressa").
+                                   UI: sfondo primario pieno, ora gigante, lista farmaci+dosi (testo displayMedium),
+                                   💉 se iniezione, bottoni giganti (min 88dp) "✅ Fatto" e "⏰ Rimanda 10 minuti".
+                                   SUONO: Ringtone di RingtoneManager.getDefaultUri(TYPE_ALARM) con AudioAttributes USAGE_ALARM, loop
+                                   (SDK>=28 ringtone.isLooping=true), start in onStart, stop in onStop/onDestroy e su Fatto/Rimanda.
+                                   VIBRAZIONE: VibratorManager/Vibrator waveform ripetuto, cancel su stop.
+                                   TTS: TextToSpeech(context, listener); in onInit SUCCESS -> setLanguage(Locale.ITALIAN); se
+                                   LANG_MISSING/NOT_SUPPORTED -> non parlare (nessun crash). Parla dopo 1s di suoneria (handler):
+                                   "È ora delle medicine. <per ogni dose: NomeFarmaco, dose X>. [se cambioDose: 'Attenzione: da oggi la dose di <nome> cambia.']"
+                                   con QUEUE_FLUSH + pitch/rate normali. shutdown() in onDestroy.
+                                   CAMBIO DOSE: query: per ogni farmacoId della fascia, esiste DoseEvent ieri (stesso farmaco, dataOra in [ieri00, oggi00))
+                                   con dose diversa dalla dose di oggi? -> annuncio. DoseEventDao nuovo metodo `doseDiFarmacoInRange(farmacoId, da, a): List<DoseEvent>`.
+                                   Bottoni: Fatto -> marca PRESO tutte (ts adesso), Rimanda -> +10min; entrambe: stop suono, cancella notifica, ripianifica, finish().
+                                   Se prova: i bottoni chiudono soltanto (niente DB).
+  allarme/BootReceiver.kt          BroadcastReceiver BOOT_COMPLETED -> goAsync+IO -> AlarmScheduler.ripianifica.
+  TerapiaApp.kt                    MODIFICA: onCreate crea il NotificationChannel "allarme_terapia" (IMPORTANCE_HIGH,
+                                   suono allarme default con USAGE_ALARM, vibrazione on).
+  ui/home/HomeScreen.kt            MODIFICA: TopAppBar semplice con titolo "Terapia non te temo" e icona campanella 🔔
+                                   (IconButton) -> onProvaAllarme; snackbar "Allarme di prova tra 1 minuto: blocca lo schermo".
+                                   HomeScreen(viewModel, onAggiungi, onProvaAllarme).
+                                   PERMESSO: all'avvio della Home, se SDK>=33 e POST_NOTIFICATIONS non concesso ->
+                                   rememberLauncherForActivityResult(RequestPermission) lanciato da LaunchedEffect una volta.
+  ui/AppRoot.kt                    MODIFICA: passa onProvaAllarme = { AlarmScheduler.programmaProva(context) } alla Home.
+  ui/home/HomeViewModel.kt         MODIFICA: segnaFatto -> dopo repository.segnaFatto chiama AlarmScheduler.ripianifica(context di app).
+                                   (Il VM ha TerapiaApp? No: HomeViewModel riceve repository. SOLUZIONE: HomeViewModel.Factory già riceve
+                                   TerapiaApp -> passa anche l'app al VM (application context) SENZA cambiare la firma pubblica del costruttore?
+                                   Cambiala pure: HomeViewModel(app: TerapiaApp) con repository = app.repository — aggiorna Factory. È interno a ui/home.)
+  ui/aggiungi/AggiungiViewModel.kt MODIFICA: conferma() -> dopo Srotolatore.applica chiama AlarmScheduler.ripianifica(app).
+app/src/test/java/com/carletto/terapianontetemo/allarme/ProssimoAllarmeTest.kt
+                                   Test JVM: scadute (limite esatto 2h, dosi PRESO ignorate), prossimaFascia (min futura, ignora scadute,
+                                   null se vuoto), dosiDellaFascia (raggruppa solo stessa fascia e stato ATTESA).
+```
+
+## 12. Regole Fase D
+- PendingIntent SEMPRE FLAG_IMMUTABLE. requestCode: 1001 allarme reale, 1002 prova, 2001 notifica, 3001/3002 azioni.
+- Il DB si tocca SOLO via DAO/Repository esistenti + i 3 metodi DAO nuovi (tutteAttesa, marcaSaltate, doseDiFarmacoInRange).
+- Nessuna nuova dipendenza Gradle. Icona notifica: android.R.drawable.ic_lock_idle_alarm (KISS, niente asset nuovi).
+- versionCode 3, versionName "0.3.0" in app/build.gradle.kts.
+- Stringhe italiane; l'allarme deve essere leggibile A DISTANZA (display sizes).

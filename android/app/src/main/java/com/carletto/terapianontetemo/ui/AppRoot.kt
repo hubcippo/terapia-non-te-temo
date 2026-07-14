@@ -7,6 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.carletto.terapianontetemo.TerapiaApp
+import com.carletto.terapianontetemo.allarme.AlarmScheduler
 import com.carletto.terapianontetemo.ui.aggiungi.AggiungiScreen
 import com.carletto.terapianontetemo.ui.aggiungi.AggiungiViewModel
 import com.carletto.terapianontetemo.ui.home.HomeScreen
@@ -32,7 +33,8 @@ fun AppRoot() {
             )
             HomeScreen(
                 viewModel = homeViewModel,
-                onAggiungi = { navController.navigate("aggiungi") }
+                onAggiungi = { navController.navigate("aggiungi") },
+                onProvaAllarme = { AlarmScheduler.programmaProva(app) }
             )
         }
         composable("aggiungi") {

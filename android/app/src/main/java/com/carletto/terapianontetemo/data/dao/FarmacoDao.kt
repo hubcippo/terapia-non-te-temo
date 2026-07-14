@@ -22,6 +22,10 @@ interface FarmacoDao {
     @Query("SELECT * FROM Farmaco WHERE id IN (:ids)")
     fun byIds(ids: List<Long>): Flow<List<Farmaco>>
 
+    /** Lettura one-shot (senza observer Room): per receiver e schermata allarme. */
+    @Query("SELECT * FROM Farmaco WHERE id IN (:ids)")
+    suspend fun byIdsOneShot(ids: List<Long>): List<Farmaco>
+
     @Query("SELECT * FROM Farmaco ORDER BY nome")
     fun tutti(): Flow<List<Farmaco>>
 }

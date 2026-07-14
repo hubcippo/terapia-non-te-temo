@@ -1,5 +1,10 @@
 package com.carletto.terapianontetemo.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,39 +20,41 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.carletto.terapianontetemo.data.entity.DoseEvent
-import com.carletto.terapianontetemo.data.entity.Forma
 import com.carletto.terapianontetemo.data.entity.StatoDose
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-
-private val FORMATO_ORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-private fun formattaOra(millis: Long): String =
-    Instant.ofEpochMilli(millis)
-        .atZone(ZoneId.systemDefault())
-        .toLocalTime()
-        .format(FORMATO_ORA)
+import com.carletto.terapianontetemo.util.etichettaFarmaco
+import com.carletto.terapianontetemo.util.formattaOra
 
 private fun etichettaStato(stato: StatoDose): String = when (stato) {
     StatoDose.ATTESA -> "Attesa"
@@ -59,23 +66,77 @@ private fun etichettaStato(stato: StatoDose): String = when (stato) {
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
-    onAggiungi: () -> Unit
+    onAggiungi: () -> Unit,
+    onProvaAllarme: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Al primo avvio su Android 13+ chiede il permesso per le notifiche
+    // (senza il quale l'allarme non puo' mostrarsi ad app chiusa).
+    val context = LocalContext.current
+    val richiestaPermesso = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            richiestaPermesso.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     HomeContent(
         state = state,
         onFatto = viewModel::segnaFatto,
-        onAggiungi = onAggiungi
+        onAggiungi = onAggiungi,
+        onProvaAllarme = onProvaAllarme
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun HomeContent(
     state: HomeUiState,
     onFatto: (Long) -> Unit,
-    onAggiungi: () -> Unit
+    onAggiungi: () -> Unit,
+    onProvaAllarme: () -> Unit
 ) {
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Terapia non te temo",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            onProvaAllarme()
+                            scope.launch {
+                                snackbarHostState.showSnackbar(
+                                    "Allarme di prova tra 1 minuto: blocca lo schermo"
+                                )
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Notifications,
+                            contentDescription = "Prova l'allarme"
+                        )
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             ExtendedFloatingActionButton(onClick = onAggiungi) {
                 Text(
@@ -148,10 +209,6 @@ private fun HomeContent(
 
 private fun nomeFarmaco(state: HomeUiState, dose: DoseEvent): String =
     state.nomiFarmaci[dose.farmacoId] ?: "Farmaco"
-
-/** Regola di presentazione unica: le iniezioni mostrano l'emoji 💉 davanti al nome. */
-private fun etichettaFarmaco(forma: Forma, nome: String): String =
-    if (forma == Forma.INIEZIONE) "💉 $nome" else nome
 
 @Composable
 private fun ProssimaDoseCard(

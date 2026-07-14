@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.carletto.terapianontetemo.TerapiaApp
 import com.carletto.terapianontetemo.ai.KeyStore
+import com.carletto.terapianontetemo.allarme.AlarmScheduler
 import com.carletto.terapianontetemo.ai.OpenAiVisionClient
 import com.carletto.terapianontetemo.domain.EstrazioneParser
 import com.carletto.terapianontetemo.domain.Srotolatore
@@ -125,6 +126,8 @@ class AggiungiViewModel(private val app: TerapiaApp) : ViewModel() {
             repo = app.repository,
             db = app.database
         )
+        // Le nuove dosi sono in Room: pianifica subito il prossimo allarme.
+        AlarmScheduler.ripianifica(app)
     }
 
     /** Torna allo stato iniziale (scelta della foto). */

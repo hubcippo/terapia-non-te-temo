@@ -3,6 +3,14 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Fase D: allarmi esatti (app sveglia/promemoria medico), notifiche
+         full-screen, vibrazione e ripianificazione dopo il riavvio. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application
         android:name=".TerapiaApp"
         android:allowBackup="true"
@@ -19,6 +27,36 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Allarme a tutto schermo: lanciata SOLO via fullScreenIntent
+             della notifica (MAI startActivity dai receiver). -->
+        <activity
+            android:name=".allarme.AlarmActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:theme="@style/Theme.TerapiaNonTeTemo"
+            android:turnScreenOn="true" />
+
+        <!-- Receiver dell'allarme (target dei PendingIntent di AlarmManager). -->
+        <receiver
+            android:name=".allarme.AlarmReceiver"
+            android:exported="false" />
+
+        <!-- Azioni Fatto / Rimanda dalla notifica di allarme. -->
+        <receiver
+            android:name=".allarme.AzioneReceiver"
+            android:exported="false" />
+
+        <!-- Ripianifica gli allarmi dopo il riavvio del telefono. -->
+        <receiver
+            android:name=".allarme.BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- FileProvider per la foto della ricetta scattata con la fotocamera
              (file in cacheDir, vedi res/xml/file_paths.xml). Niente permesso CAMERA:
