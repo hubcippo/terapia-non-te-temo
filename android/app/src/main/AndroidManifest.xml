@@ -20,6 +20,19 @@
             </intent-filter>
         </activity>
 
+        <!-- FileProvider per la foto della ricetta scattata con la fotocamera
+             (file in cacheDir, vedi res/xml/file_paths.xml). Niente permesso CAMERA:
+             TakePicture usa l'app fotocamera di sistema. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

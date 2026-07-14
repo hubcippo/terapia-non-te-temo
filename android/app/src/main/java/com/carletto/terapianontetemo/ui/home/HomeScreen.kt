@@ -3,6 +3,7 @@ package com.carletto.terapianontetemo.ui.home
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,20 +57,35 @@ private fun etichettaStato(stato: StatoDose): String = when (stato) {
 }
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel) {
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onAggiungi: () -> Unit
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     HomeContent(
         state = state,
-        onFatto = viewModel::segnaFatto
+        onFatto = viewModel::segnaFatto,
+        onAggiungi = onAggiungi
     )
 }
 
 @Composable
 private fun HomeContent(
     state: HomeUiState,
-    onFatto: (Long) -> Unit
+    onFatto: (Long) -> Unit,
+    onAggiungi: () -> Unit
 ) {
-    Scaffold { innerPadding ->
+    Scaffold(
+        floatingActionButton = {
+            ExtendedFloatingActionButton(onClick = onAggiungi) {
+                Text(
+                    text = "➕ Aggiungi da foto",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -111,7 +128,9 @@ private fun HomeContent(
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    // Spazio in fondo per non coprire l'ultima riga col FAB.
+                    contentPadding = PaddingValues(bottom = 96.dp)
                 ) {
                     items(state.oggi, key = { it.id }) { dose ->
                         DoseRiga(

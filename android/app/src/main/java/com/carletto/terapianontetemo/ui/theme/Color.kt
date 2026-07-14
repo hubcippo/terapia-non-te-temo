@@ -55,3 +55,9 @@ val SfondoScuro = Color(0xFF0F1511)
 val SuSfondoScuro = Color(0xFFDEE4DC)
 val SuperficieScura = Color(0xFF0F1511)
 val SuSuperficieScura = Color(0xFFDEE4DC)
+
+// Colori "attenzione" (gialli fissi, leggibili anche in tema scuro sui container chiari).
+// Usati dalla schermata Conferma per avvisi e terapie da controllare.
+val GialloBordo = Color(0xFFF9A825)
+val GialloSfondo = Color(0xFFFFF8E1)
+val GialloTesto = Color(0xFF6D4C00)

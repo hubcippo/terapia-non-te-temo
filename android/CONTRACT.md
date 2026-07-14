@@ -139,3 +139,56 @@ class OpenAiVisionClient(private val apiKey: String) {
 - Trigger: push su main + workflow_dispatch. `defaults.run.working-directory: android`.
 - Step: checkout, set-up JDK 17 (temurin), setup Android SDK, `./gradlew :app:assembleDebug`, upload artifact `app-debug.apk`.
 - (Firma release + Obtainium → Fase D, non ora.)
+
+---
+
+# CONTRACT — Fase C: foto → estrazione → Conferma (aggiunta 2026-07-14)
+
+Regole d'oro invariate (sez.0). Nuovi file, un solo autore.
+
+## 9. File Fase C
+```
+app/src/main/res/xml/file_paths.xml                 FileProvider paths (cache-path per foto camera)
+app/src/main/AndroidManifest.xml                    MODIFICA: aggiungi <provider> FileProvider (authority "${applicationId}.fileprovider")
+app/src/main/java/com/carletto/terapianontetemo/
+  util/ImmaginePerVision.kt        object: fun prepara(context, uri): ByteArray — decodifica Uri, ruota per EXIF se serve,
+                                   downscale lato lungo max 2048px, comprime JPEG q85. Lancia IOException con msg italiano se illeggibile.
+  ui/aggiungi/PianoEditabile.kt    Modello UI mutabile-friendly del piano: data class con List di TerapiaEditabile
+                                   (farmaco:String, forma:FormaEstratta, note:String?, confidenza, illeggibile, inclusa:Boolean=true,
+                                    fasi: List<FaseEditabile> con campi String editabili per dose/doseMattina/doseSera/durataGiorni e List<FasciaEstratta> quando).
+                                   Funzioni: fun daEstratto(p: PianoEstratto): PianoEditabile; fun versoEstratto(): PianoEstratto
+                                   (solo terapie inclusa=true; durataGiorni parse Int?; stringhe vuote -> null). PURE, testabili.
+  ui/aggiungi/AggiungiViewModel.kt sealed interface AggiungiStato { Idle; ServeChiave; InCorso; Errore(val messaggio:String);
+                                   Conferma(val piano: PianoEditabile, val fotoUri: Uri?) }
+                                   class AggiungiViewModel(app: TerapiaApp) : ViewModel — espone StateFlow<AggiungiStato>;
+                                   fun avvia(context, uri) [controlla KeyStore.getApiKey -> ServeChiave se null; altrimenti IO: ImmaginePerVision.prepara
+                                   -> OpenAiVisionClient(chiave).estraiPiano -> EstrazioneParser.parse; e_ricetta=false -> Errore("...non sembra una prescrizione...");
+                                   catch IOException/SerializationException -> Errore msg italiano; 401 nel messaggio -> "Chiave non valida"];
+                                   fun salvaChiave(context, chiave) -> KeyStore.setApiKey e ritenta; fun aggiorna(piano) [update stato Conferma];
+                                   suspend fun conferma() -> Srotolatore.applica(piano.versoEstratto(), LocalDate.now(), app.repository, app.database); fun reset().
+                                   Factory(app: TerapiaApp) come HomeViewModel.
+  ui/aggiungi/AggiungiScreen.kt    UI stato-driven: Idle -> 2 bottoni GRANDI "📷 Scatta foto" e "🖼 Scegli dalla galleria"
+                                   (rememberLauncherForActivityResult: TakePicture con Uri da FileProvider su cacheDir; PickVisualMedia ImageOnly);
+                                   ServeChiave -> ChiaveApiCard inline (campo OutlinedTextField password + bottone Salva, testo guida breve);
+                                   InCorso -> spinner + "Sto leggendo la ricetta…"; Errore -> messaggio + bottone "Riprova";
+                                   Conferma -> naviga/mostra ConfermaContent.
+  ui/aggiungi/ConfermaScreen.kt    ConfermaContent(piano, fotoUri, onModifica, onRimuoviTerapia, onConferma):
+                                   avvisi in Card warning in cima; per terapia: Card (bordo/label GIALLO se confidenza!=ALTA o illeggibile)
+                                   con nome editabile, per fase: dose (o doseMattina+doseSera) editabili, durata giorni editabile,
+                                   FilterChip per fasce quando (MATTINA/PRANZO/POMERIGGIO/SERA/NOTTE) se schema=ORARI,
+                                   switch/icona elimina per escludere la terapia; miniatura foto (AsyncImage no — usa Image con
+                                   rememberAsyncImagePainter NO, niente Coil: usa BitmapFactory via remember su fotoUri, piccola);
+                                   bottone grande "✅ Conferma piano" -> onConferma -> nav Home (popUpTo home inclusive=false, launchSingleTop).
+  ui/AppRoot.kt                    MODIFICA: route "aggiungi" (AggiungiScreen); la Conferma è uno stato interno di AggiungiScreen (niente route separata: il piano non è serializzabile in nav args).
+  ui/home/HomeScreen.kt            MODIFICA: aggiungi FAB esteso "➕ Aggiungi da foto" (Scaffold floatingActionButton) -> onAggiungi: () -> Unit; HomeScreen prende anche onAggiungi.
+app/src/test/java/com/carletto/terapianontetemo/ui/aggiungi/PianoEditabileTest.kt
+                                   round-trip daEstratto/versoEstratto sul caso2_titolazione.json (risorse test esistenti),
+                                   esclusione terapia (inclusa=false), durata vuota -> null, dose vuota -> null.
+```
+
+## 10. Regole Fase C
+- Niente Coil/librerie nuove: solo AndroidX già nel catalog + activity-compose (rememberLauncherForActivityResult è in activity-compose, già presente).
+- Foto camera: file in context.cacheDir/"foto_ricetta.jpg" esposto via FileProvider (authority "${applicationId}.fileprovider").
+- NIENTE permesso CAMERA nel manifest (TakePicture usa l'app fotocamera di sistema).
+- Tutte le stringhe in italiano, testo grande come in Home.
+- Nessuna auto-attivazione: il piano entra in Room SOLO dal bottone Conferma.

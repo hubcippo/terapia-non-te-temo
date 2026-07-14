@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Percorsi esposti dal FileProvider: la foto della ricetta scattata
+     con la fotocamera vive in context.cacheDir (CONTRACT sez. 10). -->
+<paths>
+    <cache-path
+        name="foto"
+        path="." />
+</paths>
